@@ -43,14 +43,7 @@ def gen_batch(num_steps,state_size,p):
 		#data_X=p[i*epoch_size+1:i*epoch_size+state_size+1]
 		yield (np.array(pr0),np.array(pr1),np.array(X),np.array(last_p),np.array(second_last_p))
 ##________________________________________________generate training batches________________________#
-#plt.plot(gen_financial_data())
-#plt.show()
 
-#with tf.variable_scope('rnn_cell'):
-#	W=tf.get_variable('W',[state_size,state_size])
-#	b=tf.get_variable('b',[state_size],initializer=tf.constant_initializer(0.0))
-#action: the last action
-#state_size: state representation size.
 #________________________________________________________________create data___________________________________#
 
 
@@ -96,8 +89,6 @@ for num_steps in stack_range:#time stack:
 
 				#define place holder all tensors
 				p_pr0=tf.placeholder(tf.float32,[action_size,num_steps])
-				last_p=tf.placeholder(tf.float32,[1])
-				second_last_p=tf.placeholder(tf.float32,[1])
 				p_pr1=tf.placeholder(tf.float32,[action_size,num_steps])
 				x=tf.placeholder(tf.float32, [state_size,num_steps], name='input_placeholder')
 				#y=tf.placeholder(tf.int32, [action_size,num_steps], name='onput_placeholder')
@@ -153,21 +144,9 @@ for num_steps in stack_range:#time stack:
 				#________________________________________define network outputs_________________________________#
 				final_action=rnn_outputs[0]
 				constant_last_action=tf.squeeze(constant_last_actions)
-
-				#neg_revenue=tf.reduce_mean(miu*(tf.reduce_sum(tf.abs(p_pr1-p_pr0)*theta)-tf.matmul(p_pr0,constant_last_action)))
-				#neg_revenue=miu*(tf.square(rnn_outputs[-1]-rnn_outputs[-2])*theta-tf.matmul([last_p-second_last_p],rnn_outputs[-2]))
-				#neg_revenue=[tf.reduce_sum(tf.where(tf.greater(rnn_output,constant_last_action),miu*((rnn_output-constant_last_action)*theta-(pr1-pr0)*rnn_output),miu*((constant_last_action-rnn_output)*theta-(pr1-pr0)*rnn_output))) for rnn_output,constant_last_action,pr1,pr0 in zip(rnn_outputs, constant_last_actions, p_pr1, p_pr0) ]
-				#neg_revenue=[tf.reduce_sum(tf.where(tf.greater(rnn_outputs,constant_last_actions),miu*(tf.reduce_sum((rnn_outputs-constant_last_actions)*theta)-tf.matmul((pr1-pr0),rnn_outputs)),miu*(tf.reduce_sum((constant_last_actions-rnn_outputs)*theta)-tf.matmul((pr1-pr0),rnn_outputs))))]
-				#neg_revenue=miu*(tf.subtract(tf.abs(tf.subtract(rnn_outputs,constant_last_action))*theta,tf.multiply((p_pr1-p_pr0),constant_last_action)))
 				neg_revenue=miu*((-1)*tf.multiply(tf.subtract(p_pr1,p_pr0),constant_last_actions))
-				#neg_revenue=tf.reduce_mean(miu*((-1)*tf.multiply(tf.subtract(p_pr1,p_pr0),constant_last_action)))
 				constant_action=tf.reduce_mean(final_action)
-
-				#neg_revenue=miu*(tf.subtract(tf.abs(tf.subtract(rnn_outputs[-1],constant_last_action[-1])*theta),tf.multiply((p_pr1[-1]-p_pr0[-1]),constant_last_action[-1])))
-
-
 				total_revenue=tf.reduce_sum(miu*((-1)*tf.multiply(tf.subtract(last_p,second_last_p),final_action)))
-				#neg=tf.reduce_mean(neg_revenue)
 				#use constant_last_action to store data generate by the agent. 
 				train_step=tf.train.GradientDescentOptimizer(learning_rate).minimize(neg_revenue)
 				#train_step=tf.train.AdagradOptimizer(learning_rate).minimize(neg_revenue)
@@ -177,8 +156,6 @@ for num_steps in stack_range:#time stack:
 				#__________________________________________________________define network___________________________________________________________#	
 
 
-				#all_actions=np.zeros(len(p)-1-state_size-100)
-				#all_profits=np.zeros(len(p)-1-state_size-100)
 				all_profits=[]
 				all_actions=[]
 				current_average_profits=[]
@@ -186,22 +163,11 @@ for num_steps in stack_range:#time stack:
 				with tf.Session() as sess:
 					sess.run(tf.global_variables_initializer())
 					training_state=[np.zeros([action_size])]
-					#print(training_state)
-					#=tf.expand_dims(ts,axis=0)	
-				#print(training_state)
 				#__________________________________________________________initialize network_________________________________________________________#
 				#____________________________________________first round of running with random weights_______________________________________________#
 					##calculate pr0 and pr1.
 					for i,(pr0,pr1,X,Last_p,Second_last_p) in enumerate(gen_batch(num_steps,state_size,p)):
-						#print('action',training_state)
-						#print(all_actions)
-					##calculate pr0 and pr1.
-						Pr0,Pr1,lastp,secondp,rnn_out,profits,profit,training_state,constant_action_,_=sess.run([p_pr0,p_pr1,last_p,second_last_p,rnn_outputs,neg_revenue,total_revenue,final_action,constant_action,train_step],feed_dict ={x:X,init_action:training_state,p_pr0:pr0,p_pr1:pr1,last_p:Last_p,second_last_p:Second_last_p})
-						#training_state=tf.squeeze(training_state,1)
-						#profit=tf.squeeze(profit,1)
-						#print('profit',profit)
-						#all_profits[i]=tf.squeeze(profit)
-						#all_actions[i]=tf.squeeze(action)
+						Pr0,Pr1,rnn_out,profits,profit,training_state,constant_action_,_=sess.run([p_pr0,p_pr1,rnn_outputs,neg_revenue,total_revenue,final_action,constant_action,train_step],feed_dict ={x:X,init_action:training_state,p_pr0:pr0,p_pr1:pr1})
 						all_profits.append(-1*profit)
 						current_average_profits.append(np.sum(all_profits))
 						#print(profit)
@@ -237,15 +203,11 @@ for num_steps in stack_range:#time stack:
 				#record[q,]=(str(float('%0.1f' % num_steps)),str(float('%0.1f' % state_size)),str(float('%0.1f' % hidden_layers)),str(float('%0.4f' % learning_rate)),str(float('%0.2f' % theta)),str(float('%0.2f' % np.sum(all_profits))),str(float('%0.2f' % float((p[-1]-p[0])*100))))
 				record.append([num_steps,state_size,hidden_layers,learning_rate,theta,np.sum(all_profits),(p[-1]-p[0])*100])
 				plt.close('all')
-				#f=open('/home/yidi/rnn/experiments/record.csv','w')
-				#f.write(str([str(float('%0.1f' % num_steps)),str(float('%0.1f' % state_size)),str(float('%0.1f' % hidden_layers)),str(float('%0.4f' % learning_rate)),str(float('%0.2f' % theta)),str(float('%0.2f' % np.sum(all_profits))),str(float('%0.2f' % float((p[-1]-p[0])*100))),'\n']))
-			#f.write('[stack,state_size,hidden_layers,learning_rate,transaction_cost,total_profits,buy_and_hold] \n')
 f=open('/home/yidi/rnn/experiments/record.csv','w')
 for line in record:
 	f.write(str(line))
 	f.write('\n')
 	
-
 	#____________________________________________first round of running with random weights_______________________________________________#
 
  
