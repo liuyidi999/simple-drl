@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 import random
 import math
 import time
-#________________________________________________________________create data___________________________________#
-
-##________________________________________________generate financial prices series________________________#
+#_________________________________________________________create data___________________________________#
+	##________________________________________________generate financial prices series________________________#
 def gen_financial_data(size=7000):
 	alpha=0.3
 	k=0
@@ -22,9 +21,8 @@ def gen_financial_data(size=7000):
 	R=max(p)-min(p)		
 	z=[math.exp(pr/R) for pr in p]
 	return np.array(z)
-##________________________________________________generate financial prices series________________________#
-
-##________________________________________________generate training batches________________________#
+	##________________________________________________generate financial prices series________________________#
+	##________________________________________________generate training batches________________________#
 
 def gen_batch(num_steps,state_size,p):
 	epoch_size=(len(p)-1-state_size-num_steps)#epochsize means how many times trade or training happens, we make first 100 data points useless for the sake of make space for training time stacks and state length.
@@ -42,37 +40,25 @@ def gen_batch(num_steps,state_size,p):
 		#data_pr0=p[i*epoch_size+state_size:i*epoch_size+num_steps+state_size]
 		#data_X=p[i*epoch_size+1:i*epoch_size+state_size+1]
 		yield (np.array(pr0),np.array(pr1),np.array(X),np.array(last_p),np.array(second_last_p))
-##________________________________________________generate training batches________________________#
-
-#________________________________________________________________create data___________________________________#
-
+	##________________________________________________generate training batches________________________#
+#_______________________________________________________create data___________________________________#
 
 
 
-
-
-
-
-
-
+#_______________________________________________________define loop framework___________________________________#
 nn_range=[10]
 stack_range=[5]
 state_range=[20]
 learning_rate_range=[0.01]
-
-
-
-
-
 num_experiments=len(nn_range)*len(stack_range)*len(state_range)
 record=[]
 record.append(['stack','state_size','hidden_layers','learning_rate','transaction_cost','total_profits','buy_and_hold'])
-#record=np.zeros([num_experiments,7])
-
-
 q=0
 tf.set_random_seed(q)
 p=gen_financial_data()#p contains all prices series
+#________________________________________________________define loop framework___________________________________#
+
+
 #__________________________________________________________define network___________________________________________________________#	
 for num_steps in stack_range:#time stack:						
 	action_size=1 #output size of action which used as another input of last node later
@@ -152,18 +138,19 @@ for num_steps in stack_range:#time stack:
 				#train_step=tf.train.AdagradOptimizer(learning_rate).minimize(neg_revenue)
 
 				#________________________________________define network outputs_________________________________#
+#__________________________________________________________define network___________________________________________________________#	
 
-				#__________________________________________________________define network___________________________________________________________#	
 
-
-				all_profits=[]
-				all_actions=[]
+				all_profits=[]#record all the profits
+				all_actions=[]#record all actions
 				current_average_profits=[]
 				#__________________________________________________________initialize network_________________________________________________________#
 				with tf.Session() as sess:
 					sess.run(tf.global_variables_initializer())
 					training_state=[np.zeros([action_size])]
 				#__________________________________________________________initialize network_________________________________________________________#
+
+
 				#____________________________________________first round of running with random weights_______________________________________________#
 					##calculate pr0 and pr1.
 					for i,(pr0,pr1,X,Last_p,Second_last_p) in enumerate(gen_batch(num_steps,state_size,p)):
@@ -208,7 +195,7 @@ for line in record:
 	f.write(str(line))
 	f.write('\n')
 	
-	#____________________________________________first round of running with random weights_______________________________________________#
+#____________________________________________first round of running with random weights_______________________________________________#
 
  
 
