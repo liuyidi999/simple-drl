@@ -55,9 +55,9 @@ def gen_batch(num_steps,state_size,p):
 
 
 
-nn_range=[2,5,10]
-stack_range=[2,5,10]
-state_range=[2,5,10,20,30]
+nn_range=[10]
+stack_range=[5]
+state_range=[20]
 learning_rate_range=[0.01]
 
 
