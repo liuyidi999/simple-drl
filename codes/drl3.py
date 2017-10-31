@@ -74,8 +74,8 @@ for num_steps in stack_range:#time stack:
 				#each cellis inputs include the last action(action_size) and the current state representation(state_size)
 
 				#define place holder all tensors
-				p_pr0=tf.placeholder(tf.float32,[action_size,num_steps])
-				p_pr1=tf.placeholder(tf.float32,[action_size,num_steps])
+				p_pr0=tf.placeholder(tf.float32,[action_size,num_steps],name='laged prices%s'%q)
+				p_pr1=tf.placeholder(tf.float32,[action_size,num_steps],name='prices%s'%q)
 				x=tf.placeholder(tf.float32, [state_size,num_steps], name='input_placeholder')
 				#y=tf.placeholder(tf.int32, [action_size,num_steps], name='onput_placeholder')
 				#each placeholde is supposed to hace a be num_steps long. in each training, the data will load on for a time window of num_steps. it is time stack.
