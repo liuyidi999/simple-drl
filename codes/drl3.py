@@ -46,10 +46,10 @@ def gen_batch(num_steps,state_size,p):
 
 
 #_______________________________________________________define loop framework___________________________________#
-nn_range=[10]
-stack_range=[5]
-state_range=[20]
-learning_rate_range=[0.01]
+nn_range=[15,20,25,30]
+stack_range=[5,6,7,8]
+state_range=[45,50,55,60]
+learning_rate_range=[0.005,0.01,0.05,0.1]
 num_experiments=len(nn_range)*len(stack_range)*len(state_range)
 record=[]
 record.append(['stack','state_size','hidden_layers','learning_rate','transaction_cost','total_profits','buy_and_hold'])
@@ -72,11 +72,14 @@ for num_steps in stack_range:#time stack:
 				k=str(q)
 				#each cell has a output of a tanh and thus an action
 				#each cellis inputs include the last action(action_size) and the current state representation(state_size)
-
+				
 				#define place holder all tensors
-				p_pr0=tf.placeholder(tf.float32,[action_size,num_steps],name='laged prices%s'%q)
+				p_pr0=tf.placeholder(tf.float32,[action_size,num_steps],name='laged_prices%s'%q)
+				last_p=tf.placeholder(tf.float32,[1])
+				second_last_p=tf.placeholder(tf.float32,[1])
 				p_pr1=tf.placeholder(tf.float32,[action_size,num_steps],name='prices%s'%q)
-				x=tf.placeholder(tf.float32, [state_size,num_steps], name='input_placeholder')
+				with tf.name_scope('inputs%s'%q):
+					x=tf.placeholder(tf.float32, [state_size,num_steps], name='input_placeholder%s'%q)
 				#y=tf.placeholder(tf.int32, [action_size,num_steps], name='onput_placeholder')
 				#each placeholde is supposed to hace a be num_steps long. in each training, the data will load on for a time window of num_steps. it is time stack.
 
@@ -108,7 +111,7 @@ for num_steps in stack_range:#time stack:
 						#print(action)
 						#print(hidden)
 						new_hidden_input=tf.concat([hidden,action],axis=1)
-						act=tf.sign(tf.matmul(new_hidden_input,W1)+b1)
+						act=tf.tanh(tf.matmul(new_hidden_input,W1)+b1)
 					return act
 
 
@@ -131,10 +134,12 @@ for num_steps in stack_range:#time stack:
 				final_action=rnn_outputs[0]
 				constant_last_action=tf.squeeze(constant_last_actions)
 				neg_revenue=miu*((-1)*tf.multiply(tf.subtract(p_pr1,p_pr0),constant_last_actions))
+				#neg_revenue=tf.reduce_sum(miu*((-1)*tf.multiply(tf.subtract(p_pr1,p_pr0),constant_last_actions)))
 				constant_action=tf.reduce_mean(final_action)
 				total_revenue=tf.reduce_sum(miu*((-1)*tf.multiply(tf.subtract(last_p,second_last_p),final_action)))
 				#use constant_last_action to store data generate by the agent. 
 				train_step=tf.train.GradientDescentOptimizer(learning_rate).minimize(neg_revenue)
+				#merged=tf.summary.merge_all()
 				#train_step=tf.train.AdagradOptimizer(learning_rate).minimize(neg_revenue)
 
 				#________________________________________define network outputs_________________________________#
@@ -148,20 +153,30 @@ for num_steps in stack_range:#time stack:
 				with tf.Session() as sess:
 					sess.run(tf.global_variables_initializer())
 					training_state=[np.zeros([action_size])]
+					#merged=tf.summary.merge_all()
+					
+					
 				#__________________________________________________________initialize network_________________________________________________________#
 
 
 				#____________________________________________first round of running with random weights_______________________________________________#
 					##calculate pr0 and pr1.
 					for i,(pr0,pr1,X,Last_p,Second_last_p) in enumerate(gen_batch(num_steps,state_size,p)):
-						Pr0,Pr1,rnn_out,profits,profit,training_state,constant_action_,_=sess.run([p_pr0,p_pr1,rnn_outputs,neg_revenue,total_revenue,final_action,constant_action,train_step],feed_dict ={x:X,init_action:training_state,p_pr0:pr0,p_pr1:pr1})
+						Pr0,Pr1,rnn_out,profits,profit,training_state,constant_action_,_=sess.run([p_pr0,p_pr1,rnn_outputs,neg_revenue,total_revenue,final_action,constant_action,train_step],feed_dict ={x:X,init_action:training_state,p_pr0:pr0,p_pr1:pr1,last_p:Last_p,second_last_p:Second_last_p})
+						#summary=sess.run(merged,feed_dict ={x:X,init_action:training_state,p_pr0:pr0,p_pr1:pr1,last_p:Last_p,second_last_p:Second_last_p})
 						all_profits.append(-1*profit)
 						current_average_profits.append(np.sum(all_profits))
 						#print(profit)
 						all_actions.append(constant_action_)
-	
-					sess.close()
+						#writer.add_summary(summary)
+						#writer.flush()
+					#writer=tf.summary.FileWriter('/home/yidi/simple-drl/codes',sess.graph)					
+					#writer.close()
+					#writer=tf.summary.FileWriter("/home/yidi/simple-drl/codes",sess.graph)
+					#sess.close()
 				time_needed=time.clock()
+				
+				
 				print(time_needed)
 				fig=plt.figure(figsize=(16,9))
 				p1=plt.subplot(3,1,1)
@@ -198,7 +213,6 @@ for line in record:
 #____________________________________________first round of running with random weights_______________________________________________#
 
  
-
 
 
 
