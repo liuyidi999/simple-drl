@@ -36,7 +36,7 @@ def gen_batch(num_steps,state_size,p):
 		pr0=[p[i+state_size:i+state_size+num_steps]]
 		second_last_p=[p[i+num_steps]]
 		for j in range(num_steps):
-			X[:,j]=p[1+j+i:1+state_size+j+i]
+			X[:,j]=p[1+j+i+1:1+state_size+j+i+1]
 		#data_pr0=p[i*epoch_size+state_size:i*epoch_size+num_steps+state_size]
 		#data_X=p[i*epoch_size+1:i*epoch_size+state_size+1]
 		yield (np.array(pr0),np.array(pr1),np.array(X),np.array(last_p),np.array(second_last_p))
@@ -46,6 +46,9 @@ def gen_batch(num_steps,state_size,p):
 
 
 #_______________________________________________________define loop framework___________________________________#
+#hidden_layer2_nodes=30
+hidden_layer3_nodes=20
+hidden_layer4_nodes=20
 nn_range=[15,20,25,30]
 stack_range=[5,6,7,8]
 state_range=[45,50,55,60]
@@ -56,6 +59,7 @@ record.append(['stack','state_size','hidden_layers','learning_rate','transaction
 q=0
 tf.set_random_seed(q)
 p=gen_financial_data()#p contains all prices series
+theta=0.01#transaction cost percentage
 #________________________________________________________define loop framework___________________________________#
 
 
@@ -65,9 +69,9 @@ for num_steps in stack_range:#time stack:
 	for state_size in state_range: #using last 10 prices.and also present size so state_size is ac
 		miu=100#investment scale
 		for hidden_layers in nn_range:#hidden layers
-			
+			hidden_layer2_nodes=hidden_layers
 			for learning_rate in learning_rate_range:
-				theta=0#transaction cost percentage
+				
 				q=q+1
 				k=str(q)
 				#each cell has a output of a tanh and thus an action
@@ -96,6 +100,8 @@ for num_steps in stack_range:#time stack:
 				with tf.variable_scope(k) as scope:
 						W1=tf.get_variable('W1',[hidden_layers+action_size,action_size])#hidden layers outputs + action of last step-->next action
 						b1=tf.get_variable('b1',[action_size],initializer=tf.constant_initializer(0.0))#next action inputs + treshold(s)
+						d_W1=tf.get_variable('d_W1',[hidden_layers,hidden_layer2_nodes])#hidden layer2 weights
+						d_b1=tf.get_variable('d_b1',[hidden_layer2_nodes],initializer=tf.constant_initializer(0.0))#hidden layer2 threshold
 						W=tf.get_variable('W',[state_size,hidden_layers])#inputs-->hiddellayers
 						b=tf.get_variable('b',[hidden_layers],initializer=tf.constant_initializer(0.0))#hidden layers inputs+hidden layers thresholds
 		
@@ -104,14 +110,18 @@ for num_steps in stack_range:#time stack:
 					with tf.variable_scope(k,reuse=True):
 						W1=tf.get_variable('W1',[hidden_layers+action_size,action_size])# same as above
 						b1=tf.get_variable('b1',[action_size],initializer=tf.constant_initializer(0.0))#
+						d_W1=tf.get_variable('d_W1',[hidden_layers,hidden_layer2_nodes])#hidden layer2 weights
+						d_b1=tf.get_variable('d_b1',[hidden_layer2_nodes],initializer=tf.constant_initializer(0.0))#hidden layer2 threshold
 						W=tf.get_variable('W',[state_size,hidden_layers])
 						b=tf.get_variable('b',[hidden_layers],initializer=tf.constant_initializer(0.0))
-						hidden=tf.tanh(tf.matmul(tf.expand_dims(rnn_input,0),W)+b)# make rnn inputs shapr of [1,state_size]
+						hidden_output1=tf.tanh(tf.matmul([rnn_input],W)+b)
+						hidden_output2=tf.tanh(tf.matmul(hidden_output1,d_W1)+d_b1)
+						#hidden=tf.tanh(tf.matmul(tf.expand_dims(rnn_input,0),W)+b)# make rnn inputs shapr of [1,state_size]
 						#cp_action=tf.expand_dims(action,0)
 						#print(action)
 						#print(hidden)
-						new_hidden_input=tf.concat([hidden,action],axis=1)
-						act=tf.tanh(tf.matmul(new_hidden_input,W1)+b1)
+						final_hidden_input=tf.concat([hidden_output2,action],axis=1)#the input of last tanh node
+						act=tf.tanh(tf.matmul(final_hidden_input,W1)+b1)#action
 					return act
 
 
@@ -133,15 +143,19 @@ for num_steps in stack_range:#time stack:
 				#________________________________________define network outputs_________________________________#
 				final_action=rnn_outputs[0]
 				constant_last_action=tf.squeeze(constant_last_actions)
-				neg_revenue=miu*((-1)*tf.multiply(tf.subtract(p_pr1,p_pr0),constant_last_actions))
-				#neg_revenue=tf.reduce_sum(miu*((-1)*tf.multiply(tf.subtract(p_pr1,p_pr0),constant_last_actions)))
+				#neg_revenue=miu*(((-1)*tf.multiply(tf.subtract(x[-1,:],x[-2,:]),constant_last_actions))+theta*tf.abs(tf.subtract(rnn_outputs,constant_last_actions)))
+				#neg_revenue=miu*(((-1)*tf.matmul([[rnn_input[-1]-rnn_input[-2] for rnn_input in rnn_inputs]],tf.expand_dims(constant_last_actions,1)))+theta*tf.abs(tf.subtract(rnn_outputs,constant_last_actions)))
+				#neg_revenue=miu*(tf.subtract(theta*tf.abs(tf.subtract(rnn_outputs,constant_last_actions)),tf.multiply(tf.subtract(x[-1,:],x[-2,:]),constant_last_actions)))
+				
+				neg_revenue=miu*(((-1)*tf.multiply(tf.subtract(p_pr1,p_pr0),constant_last_actions))+theta*tf.abs(tf.subtract(rnn_outputs,constant_last_actions)))
+				#neg_revenue=miu*(((-1)*tf.multiply(tf.subtract(x[-1,:],x[-2,:]),constant_last_actions))+theta*tf.abs(tf.subtract(rnn_outputs,constant_last_actions)))
 				constant_action=tf.reduce_mean(final_action)
 				total_revenue=tf.reduce_sum(miu*((-1)*tf.multiply(tf.subtract(last_p,second_last_p),final_action)))
 				#use constant_last_action to store data generate by the agent. 
 				train_step=tf.train.GradientDescentOptimizer(learning_rate).minimize(neg_revenue)
 				#merged=tf.summary.merge_all()
 				#train_step=tf.train.AdagradOptimizer(learning_rate).minimize(neg_revenue)
-
+				
 				#________________________________________define network outputs_________________________________#
 #__________________________________________________________define network___________________________________________________________#	
 
@@ -162,7 +176,7 @@ for num_steps in stack_range:#time stack:
 				#____________________________________________first round of running with random weights_______________________________________________#
 					##calculate pr0 and pr1.
 					for i,(pr0,pr1,X,Last_p,Second_last_p) in enumerate(gen_batch(num_steps,state_size,p)):
-						Pr0,Pr1,rnn_out,profits,profit,training_state,constant_action_,_=sess.run([p_pr0,p_pr1,rnn_outputs,neg_revenue,total_revenue,final_action,constant_action,train_step],feed_dict ={x:X,init_action:training_state,p_pr0:pr0,p_pr1:pr1,last_p:Last_p,second_last_p:Second_last_p})
+						X,Pr0,Pr1,rnn_out,profits,profit,training_state,constant_action_,_=sess.run([x,p_pr0,p_pr1,rnn_outputs,neg_revenue,total_revenue,final_action,constant_action,train_step],feed_dict ={x:X,init_action:training_state,p_pr0:pr0,p_pr1:pr1,last_p:Last_p,second_last_p:Second_last_p})
 						#summary=sess.run(merged,feed_dict ={x:X,init_action:training_state,p_pr0:pr0,p_pr1:pr1,last_p:Last_p,second_last_p:Second_last_p})
 						all_profits.append(-1*profit)
 						current_average_profits.append(np.sum(all_profits))
@@ -170,10 +184,23 @@ for num_steps in stack_range:#time stack:
 						all_actions.append(constant_action_)
 						#writer.add_summary(summary)
 						#writer.flush()
-					#writer=tf.summary.FileWriter('/home/yidi/simple-drl/codes',sess.graph)					
+						#print(sess.run('%s/W1:0'%k),'\n')
+						#print(sess.run('%s/W:0'%k),'\n')
+						#print(sess.run('%s/b1:0'%k),'\n')
+						#print(sess.run('%s/b:0'%k),'\n')
+					writer=tf.summary.FileWriter('/home/yidi/simple-drl/codes',sess.graph)					
 					#writer.close()
 					#writer=tf.summary.FileWriter("/home/yidi/simple-drl/codes",sess.graph)
 					#sess.close()
+					#print('%s/W1'%k)
+					#print(sess.run('%s/W1:0'%k),'\n')
+					#print(sess.run('%s/W:0'%k),'\n')
+					#print(sess.run('%s/d_W1:0'%k),'\n')
+
+					#print(sess.run('%s/d_b1:0'%k),'\n')
+					#print(sess.run(W1))
+					#print(tf.trainable_variables())
+					#print(X,'\n',Pr0,'\n',Pr1,'\n',X[-1,:],'\n',X[-2,:])
 				time_needed=time.clock()
 				
 				
@@ -213,6 +240,7 @@ for line in record:
 #____________________________________________first round of running with random weights_______________________________________________#
 
  
+
 
 
 
